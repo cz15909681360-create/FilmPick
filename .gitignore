@@ -1,0 +1,9 @@
+**/bin/
+**/obj/
+.vs/
+.tools/
+artifacts/
+output/
+outputs/
+*.user
+*.7z
