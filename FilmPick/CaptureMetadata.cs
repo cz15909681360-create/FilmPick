@@ -147,7 +147,7 @@ sealed class CaptureReader : IDisposable
     private const string Tags = "-DateTimeOriginal -OffsetTimeOriginal -SubSecTimeOriginal -CreationDate -ContentCreateDate " +
         "-CreateDate -Make -Model -LensModel -Lens -ExposureTime -FNumber -ISO -FocalLength -ImageWidth -ImageHeight -VideoFrameRate " +
         "-Rating -RatingPercent -XMP-xmpDM:Pick -CompressorID -AVCConfiguration -Unknown_hvcC -ColorPrimaries -TransferCharacteristics " +
-        "-FocalLengthIn35mmFormat -CropHiSpeed";
+        "-Unknown_av1C -Unknown_vpcC -FocalLengthIn35mmFormat -CropHiSpeed";
     private static readonly Encoding Utf8 = new UTF8Encoding(false);
     private readonly string executable;
     private Process? process;

@@ -92,18 +92,7 @@ static class BrowseTests
         using var flags = JsonDocument.Parse("""{"XMP-xmp:Rating":0,"IFD0:Rating":5,"XMP-xmpDM:Pick":-1}""");
         var standard = CaptureMetadata.Parse(flags.RootElement);
         Check(standard.Rating == 0 && standard.Flag == Mark.Reject, "independent flag and explicit unrated");
-        using var avc = JsonDocument.Parse("""{"Track1:CompressorID":"avc1","Track1:AVCConfiguration":"base64:AWQAKP/hABtnZAAorNlAeAIn5cBEAAADAAQAAAMA8DxgxlgBAARo74/L/fj4AA=="}""");
-        Check(VideoSpec.Parse(avc.RootElement) == new VideoSpec("H.264", "4:2:0"), "AVC configuration");
-        var hevc = new byte[23];
-        hevc[0] = 1;
-        hevc[16] = 0xfe;
-        using var hevcJson = JsonDocument.Parse(JsonSerializer.Serialize(new Dictionary<string, string>
-        {
-            ["Track1:CompressorID"] = "hvc1", ["Track1:Unknown_hvcC"] = "base64:" + Convert.ToBase64String(hevc)
-        }));
-        Check(VideoSpec.Parse(hevcJson.RootElement) == new VideoSpec("HEVC", "4:2:2"), "HEVC configuration");
-        using var noConfig = JsonDocument.Parse("""{"Track1:CompressorID":"hvc1"}""");
-        Check(VideoSpec.Parse(noConfig.RootElement) == new VideoSpec("HEVC", null), "unknown chroma isn't inferred from codec");
+        CheckVideoDepth();
         using var labeled = JsonDocument.Parse("""{"Track1:CompressorID":"hvc1","Track1:ColorPrimaries":1,"Track1:TransferCharacteristics":1,"Track2:TransferCharacteristics":18}""");
         Check(VideoSpec.Parse(labeled.RootElement)?.ContainerColor == VideoColor.Tagged709, "709 marker belongs to the video track");
         using var incomplete = JsonDocument.Parse("""{"Track1:CompressorID":"hvc1","Track1:ColorPrimaries":1}""");
@@ -121,8 +110,46 @@ static class BrowseTests
             """);
         Check(VideoColors.ReadSony(Path.Combine(sony, "C0001M01.XML")) == (true, VideoColor.SLog3) &&
             Catalog.Scan(sony, false).Automatic["C0001M01.XML"] == "C0001.MP4", "Sony acquisition gamma and M01 pairing");
-        Console.WriteLine("PASS: capture metadata, filters, ordering, selection, local rating, preferences and timed DJI SRT.");
+        Console.WriteLine("PASS: capture metadata, video bit depth, filters, ordering, local rating, preferences and timed DJI SRT.");
     }
+
+    private static void CheckVideoDepth()
+    {
+        Check(VideoConfiguration("avc1", "AVCConfiguration", "AWQAKP/hABtnZAAorNlAeAIn5cBEAAADAAQAAAMA8DxgxlgBAARo74/L/fj4AA==") ==
+            new VideoSpec("H.264", "4:2:0", BitDepth: 8), "8-bit AVC SPS");
+        Check(VideoConfiguration("avc1", "AVCConfiguration", "AXoACv/hABdnegAKtstBBtgIgAAAAwCAAAAYB4kTUAEABGjOD8j++voA") ==
+            new VideoSpec("H.264", "4:2:2", BitDepth: 10), "10-bit AVC SPS");
+
+        var hevc = new byte[23];
+        hevc[0] = 1;
+        hevc[1] = 2; // Main 10 permits 8-bit samples.
+        hevc[16] = 0xfe;
+        foreach (var depth in new[] { 8, 10, 12 })
+        {
+            hevc[17] = hevc[18] = (byte)(0xf8 | (depth - 8));
+            Check(VideoConfiguration("hvc1", "Unknown_hvcC", Convert.ToBase64String(hevc)) ==
+                new VideoSpec("HEVC", "4:2:2", BitDepth: depth), $"HEVC configuration depth {depth}");
+        }
+        hevc[17] = 0xfa;
+        Check(VideoConfiguration("hvc1", "Unknown_hvcC", Convert.ToBase64String(hevc)) ==
+            new VideoSpec("HEVC", "4:2:2"), "different luma and chroma depths do not imply a uniform bit depth");
+        hevc[22] = 1;
+        Check(VideoConfiguration("hvc1", "Unknown_hvcC", Convert.ToBase64String(hevc)) ==
+            new VideoSpec("HEVC", null), "truncated HEVC configuration");
+
+        Check(VideoConfiguration("av01", "Unknown_av1C", "gQBMAAoKAAAAAzf75tfKAg==")?.BitDepth == 10, "AV1 high_bitdepth");
+        Check(VideoConfiguration("vp09", "Unknown_vpcC", "AQAAAAIKogICAgAA")?.BitDepth == 10, "VP9 vpcC component depth");
+        using var noConfig = JsonDocument.Parse("""{"Track1:CompressorID":"hvc1","Track1:BitDepth":24,"Track2:BitDepthLuma":8}""");
+        Check(VideoSpec.Parse(noConfig.RootElement) == new VideoSpec("HEVC", null),
+            "unavailable bit depth is not inferred from a container pixel depth or another track");
+    }
+
+    private static VideoSpec? VideoConfiguration(string compressor, string tag, string base64) =>
+        VideoSpec.Parse(JsonSerializer.SerializeToElement(new Dictionary<string, string>
+        {
+            ["Track1:CompressorID"] = compressor,
+            ["Track1:" + tag] = "base64:" + base64
+        }));
 
     private static void Check(bool condition, string name)
     {

@@ -85,14 +85,16 @@ public partial class MainWindow
             metadata.Date?.Display ?? (metadata.Failed ? "拍摄日期未知 · 参数读取失败" : "拍摄日期未知");
         var model = Join(metadata.Camera, metadata.Lens);
         var values = Join(exposure.Aperture, exposure.Shutter, exposure.Iso, exposure.Focal);
-        var specs = video ? Join(metadata.Resolution, metadata.Fps, metadata.Video?.Codec ?? "编码未知",
-            metadata.Video?.Chroma ?? "色度未知", VideoColors.Display(metadata.CameraColor ?? metadata.Video?.ContainerColor)) : "";
+        var specs = video ? Join(metadata.Resolution, metadata.Fps, metadata.Video?.Codec ?? "编码未知") : "";
+        var colorSpecs = video ? Join(metadata.Video?.BitDepth is { } depth ? $"{depth} bit" : "位深未知",
+            metadata.Video?.Chroma ?? "色度未知",
+            VideoColors.Display(metadata.CameraColor ?? metadata.Video?.ContainerColor)) : "";
         var flight = timed?.Flight;
         var altitude = Join(FormatFlight(flight?.RelativeAltitude, "相对高度 {0:0.0} m"),
             FormatFlight(flight?.AbsoluteAltitude, "绝对高度 {0:0.0} m"), FormatFlight(flight?.Speed, "速度 {0:0.0} m/s"));
         var coordinates = Join(FormatFlight(flight?.Latitude, "纬度 {0:0.000000}"),
             FormatFlight(flight?.Longitude, "经度 {0:0.000000}"));
-        return string.Join('\n', new[] { date, model, values, specs, altitude, coordinates }.Where(line => line.Length > 0));
+        return string.Join('\n', new[] { date, model, values, specs, colorSpecs, altitude, coordinates }.Where(line => line.Length > 0));
     }
 
     private static string? FormatFlight(double? value, string format) => value is { } number

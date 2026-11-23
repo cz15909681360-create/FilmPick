@@ -183,8 +183,10 @@ public partial class MainWindow
             await WaitUntil(() => activeTrack?.At(0)?.Iso == "ISO 100", "载入同名 DJI SRT");
             var video = capture["视频.mov"].Metadata;
             Check(video.Date?.Day == new DateOnly(2025, 11, 21) && video.Resolution == "3840 × 2160" &&
-                video.Fps == "30 fps" && video.Video is { Codec: "HEVC", Chroma: "4:2:0" }, "视频日期、编码、色度采样与原片规格");
-            Check(CaptureText(video, null, false, true).Contains("D-Log M", StringComparison.Ordinal) &&
+                video.Fps == "30 fps" && video.Video is { Codec: "HEVC", Chroma: "4:2:0", BitDepth: 10 }, "视频日期、编码、色度采样与原片位深");
+            var overlay = CaptureText(video, null, false, true);
+            Check(overlay.Contains("10 bit", StringComparison.Ordinal), "视频参数区显示原片位深");
+            Check(overlay.Contains("D-Log M", StringComparison.Ordinal) &&
                 videoLoad?.Decode == VideoDecodeMode.Compatible, "由原片 SRT 选择兼容硬解与色彩标记");
             Check(activeTrack?.SampleAt(0)?.Flight.Speed == 5 && activeTrack.SampleAt(.42) == null &&
                 activeTrack.SampleAt(.75)?.Flight.Speed == 2 && activeTrack.At(.75)?.Focal == "等效 35 mm", "SRT 的速度、坐标、等效焦段和空段");
@@ -221,13 +223,22 @@ public partial class MainWindow
             }
             using (var exif = new CaptureReader())
             {
-                var names = new[] { "H264_00.mp4", "avc422.mp4", "hevc422.mov" };
-                var specs = new[] { new VideoSpec("H.264", "4:2:0"), new VideoSpec("H.264", "4:2:2"), new VideoSpec("HEVC", "4:2:2") };
-                var paths = names.Select(name => Path.Combine(fixture, name)).Where(File.Exists).ToArray();
+                var specs = new Dictionary<string, VideoSpec>(Paths.Comparer)
+                {
+                    ["H264_00.mp4"] = new("H.264", "4:2:0", BitDepth: 8),
+                    ["avc422.mp4"] = new("H.264", "4:2:2", BitDepth: 8),
+                    ["hevc422.mov"] = new("HEVC", "4:2:2", BitDepth: 10),
+                    ["avc10.mp4"] = new("H.264", "4:2:2", BitDepth: 10),
+                    ["hevc8.mp4"] = new("HEVC", "4:2:0", BitDepth: 8),
+                    ["hevc12.mov"] = new("HEVC", "4:4:4", BitDepth: 12),
+                    ["av1-10.mp4"] = new("AV1", null, BitDepth: 10),
+                    ["vp9-10.mp4"] = new("VP9", null, BitDepth: 10)
+                };
+                var paths = specs.Keys.Select(name => Path.Combine(fixture, name)).Where(File.Exists).ToArray();
                 var samples = await exif.Read(paths, CancellationToken.None);
                 foreach (var path in paths)
                     Check(samples[path].Video is { } spec && spec with { ContainerColor = null } ==
-                        specs[Array.IndexOf(names, Path.GetFileName(path))], "码流配置：" + path);
+                        specs[Path.GetFileName(path)], "码流配置及位深：" + path);
 
                 var gradeFolder = Path.Combine(appData, "额外格式 " + Guid.NewGuid().ToString("N"));
                 Directory.CreateDirectory(gradeFolder);
@@ -256,7 +267,7 @@ public partial class MainWindow
             Check(view == Kind.Photo && Queue.SelectedItem is Row && !SwitchEmptyMode.IsVisible, "切回照片");
             await OpenRoot(Directory.CreateDirectory(Path.Combine(appData, "空目录")).FullName);
             Check(rows.Count == 0 && !SwitchEmptyMode.IsVisible, "空目录不显示切换按钮");
-            File.WriteAllText(output, "PASS: WPF browse, grades and multi-undo, archive, independent filename clear, empty mode jumps, codec, chroma, color, focal length, Tab, timed DJI data, LRF and software retry.");
+            File.WriteAllText(output, "PASS: WPF browse, grades and multi-undo, archive, independent filename clear, empty mode jumps, codec, chroma, bit depth, color, focal length, Tab, timed DJI data, LRF and software retry.");
             Application.Current.Shutdown(0);
         }
         catch (Exception error)
