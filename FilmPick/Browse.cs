@@ -13,6 +13,9 @@ record BrowsePreferences(BrowseOrder Photo, BrowseOrder Video, bool ShowCapture)
 record BrowseFilter(string Name = "", DateFilter Date = DateFilter.All, DateOnly? From = null, DateOnly? To = null,
     int Stars = 0, int Marks = 0)
 {
+    public bool Includes(BrowseItem item) =>
+        Includes(item.Name, Path.GetFileName(item.Companion), item.Date, item.Rating, item.Mark, item.Pending);
+
     public bool Includes(string name, string? companion, CaptureDate? capture, int? stars, Mark mark, bool pending)
     {
         if (!name.Contains(Name, StringComparison.OrdinalIgnoreCase) &&

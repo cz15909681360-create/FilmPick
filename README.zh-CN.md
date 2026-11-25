@@ -1,18 +1,25 @@
 # FilmPick 使用说明书
 
-适用于 FilmPick 1.7.1 · Windows x64
+适用于 FilmPick 1.7.2 · Windows x64
 
 FilmPick 用于快速翻看本地照片和视频、给素材打星和标记，以及把已选和已排除的素材连同附属文件复制归档。
 
 ## 第一次选片
 
-1. 完整解压 Windows x64 便携包，运行解压目录里的 `FilmPick.exe`。播放、RAW 预览和元数据组件都随包附带，请保留解压后的文件结构。
-2. 点「打开素材文件夹」，进入素材目录并点击「使用当前文件夹」。也可以选中一个媒体文件来打开它所在的目录。素材位于多级目录时，勾选「包含子文件夹」。
+1. 从 [GitHub Releases](https://github.com/cz15909681360-create/FilmPick/releases/latest) 下载 Windows x64 版。双击单文件 EXE 即可启动，首次运行会自动释放依赖到当前用户的临时目录。使用 7z 便携包时，完整解压后运行目录里的 `FilmPick.exe`。
+2. 从资源管理器拖入素材或文件夹，或点「打开素材文件夹」进入素材目录并点击「使用当前文件夹」。素材位于多级目录时，勾选「包含子文件夹」。
 3. 在左侧选「照片」或「视频」。如果当前模式没有素材而另一种模式有，预览区会提示「切换到照片」或「切换到视频」。
 4. 用 `↑` 和 `↓` 翻片，按 `3` 标记已选、`2` 标记排除、`1` 清除旗标。想标记完立刻看下一条，可以勾选「标记后自动跳到下一条」。
 5. 选完点「预览归档」，核对主片、附属文件和目标路径，再点「确认复制」。两类副本会进入素材目录同级的 `原目录名_已选` 和 `原目录名_已排除`。
 
 素材目录须位于本机 NTFS 固定磁盘。存储卡或网络盘里的素材可以先复制到本机工作目录。扫描会跳过符号链接、目录联接点等重解析点。
+
+## 拖入素材
+
+- 将一个文件夹拖到主窗口，即可打开该目录。拖入一张照片或一段视频时，FilmPick 会打开其所在目录并选中该条。当前已扫描到的素材直接在当前队列定位。
+- 同目录可多选文件，一次定位到资源管理器提供的第一项可识别素材。来自不同目录的文件请分次拖入。文件夹请单独拖入。
+- 拖入配对 RAW 会选中 RAW＋JPG 条目。拖入关联的 LRF、SRT、XML 或 XMP 会定位到主片。归属不明确时请直接拖入主片。
+- 在当前队列定位时，状态栏会列出为显示目标而清除的筛选条件。队列、照片预览和播放中的视频画面均可接收拖放。
 
 ## 浏览、筛选与排序
 
@@ -109,7 +116,9 @@ JPG 星级可在资源管理器的「分级」列查看。外部应用能否显�
 .\build.ps1 -Test -Package
 ```
 
-脚本会构建项目、运行测试、下载并校验播放和元数据等组件，然后在仓库上一级的 `artifacts` 目录生成 `FilmPick-1.7.1-win-x64.7z`。如果 SDK 未加入 PATH，可以通过 `-Dotnet` 指定 `dotnet.exe`。
+脚本会构建项目、运行测试、下载并校验播放和元数据等组件，然后在仓库上一级的 `artifacts` 目录生成 `FilmPick-1.7.2-win-x64.7z`。如果 SDK 未加入 PATH，可以通过 `-Dotnet` 指定 `dotnet.exe`。
+
+构建单文件版时，用 `-SingleExe` 代替 `-Package`，生成 `FilmPick-1.7.2-win-x64.exe`。两种输出可以同时构建。
 
 要单独运行测试，可以使用 NTFS 上的一个临时目录。以下命令会在系统临时目录下创建本次测试用的数据。
 
@@ -118,3 +127,8 @@ dotnet run --project .\FilmPick.Tests -c Release -- $env:TEMP
 ```
 
 如果便携包随附 `benchmark.json`，它记录的是单机实测的预览和切片用时。相关依赖版本及许可信息见 [第三方组件说明](THIRD-PARTY.md)。
+
+
+## 单文件版的播放组件
+
+在 MSYS2 UCRT64 中准备 GCC、Make、NASM、Meson、Ninja、pkgconf、Python Jinja，以及 Vulkan 编译头文件、libass、libarchive、lcms2、LuaJIT、Shaderc、SPIRV-Cross、libdovi、dav1d、libjxl、Opus、zimg、GnuTLS、zlib 与 bzip2 的 UCRT64 开发包。对独立工作目录运行 `bash build-player.sh <工作目录>`，再用 `bash stage-player.sh <工作目录> <组件目录>`收集并校验运行依赖。Windows PowerShell 中使用 `./build.ps1 -SingleExe -PlayerBundle <组件目录>`打包。单文件版通过 D3D11 播放视频。

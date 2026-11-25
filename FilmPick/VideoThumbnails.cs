@@ -52,7 +52,9 @@ sealed class ThumbnailVideoClient
 
     private static Process Start()
     {
-        var executable = Path.Combine(AppContext.BaseDirectory, "FilmPick.exe");
+        var executable = Environment.ProcessPath;
+        if (executable == null || string.Equals(Path.GetFileName(executable), "dotnet.exe", StringComparison.OrdinalIgnoreCase))
+            executable = Path.Combine(AppContext.BaseDirectory, "FilmPick.exe");
         var info = new ProcessStartInfo(executable)
         {
             UseShellExecute = false, CreateNoWindow = true, RedirectStandardInput = true, RedirectStandardOutput = true

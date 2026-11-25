@@ -5,7 +5,8 @@
     Title="FilmPick · 选片查看器" Width="1230" Height="796" MinWidth="1010" MinHeight="650"
     Background="{StaticResource Panel}" Foreground="{StaticResource Ink}" FontSize="13" FontFamily="Segoe UI, Microsoft YaHei UI"
     Icon="FilmPick.ico" WindowStartupLocation="CenterScreen" PreviewKeyDown="OnKey" PreviewKeyUp="OnKeyUp"
-    Deactivated="CancelTransportInput" Closing="OnClosing" Closed="OnClosed">
+    Deactivated="CancelTransportInput" Closing="OnClosing" Closed="OnClosed"
+    AllowDrop="True" PreviewDragEnter="PreviewFileDrag" PreviewDragOver="PreviewFileDrag" PreviewDrop="DropFiles">
     <Grid x:Name="Layout">
         <Grid.RowDefinitions>
             <RowDefinition Height="62"/>
@@ -25,7 +26,7 @@
                     </Border>
                     <StackPanel>
                         <TextBlock Text="FilmPick" FontSize="21" FontWeight="SemiBold"/>
-                        <TextBlock Text="媒体选片工作台  /  1.7.0" Foreground="{StaticResource Quiet}" FontSize="11"/>
+                        <TextBlock x:Name="VersionLabel" Foreground="{StaticResource Quiet}" FontSize="11"/>
                     </StackPanel>
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
@@ -253,7 +254,7 @@
                         <Grid x:Name="VideoSlot" Visibility="Collapsed"/>
                         <StackPanel x:Name="Empty" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="510">
                             <TextBlock x:Name="PreviewTitle" Text="打开文件夹，开始选片" FontSize="25" FontWeight="SemiBold" TextAlignment="Center" TextWrapping="Wrap"/>
-                            <TextBlock x:Name="PreviewHint" Text="在此检查画面。归档只复制，源文件保持原处。" Foreground="{StaticResource Quiet}"
+                            <TextBlock x:Name="PreviewHint" Text="拖入素材或文件夹，也可以使用「打开素材文件夹」。" Foreground="{StaticResource Quiet}"
                                        TextAlignment="Center" TextWrapping="Wrap" Margin="16,9"/>
                             <Button x:Name="SwitchEmptyMode" Visibility="Collapsed" HorizontalAlignment="Center" Click="JumpEmptyMode"/>
                         </StackPanel>

@@ -1,5 +1,10 @@
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Windows;
+
+// The single-file host extracts native libraries next to the managed assembly.
+[assembly: DefaultDllImportSearchPaths(DllImportSearchPath.AssemblyDirectory |
+    DllImportSearchPath.UseDllDirectoryForDependencies | DllImportSearchPath.System32)]
 
 namespace FilmPick;
 

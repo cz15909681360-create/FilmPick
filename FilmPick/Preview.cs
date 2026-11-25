@@ -224,7 +224,8 @@ sealed partial class VideoPlayer : IDisposable
             foreach (var (option, value) in new (string, string)[]
             {
                 ("config", "no"), ("load-scripts", "no"), ("input-default-bindings", "no"),
-                ("input-vo-keyboard", "no"), ("input-cursor", "no"), ("osc", "no"),
+                ("input-vo-keyboard", "no"), ("input-cursor", "no"), ("osc", "no"), ("drag-and-drop", "no"),
+                ("input-builtin-drag-and-drop", "no"),
                 ("sub-auto", "no"), ("audio-file-auto", "no"), ("access-references", "no"),
                 ("wid", window.ToInt64().ToString(CultureInfo.InvariantCulture)),
                 ("vo", "gpu-next"), ("gpu-api", "d3d11"), ("hwdec", "d3d11va,d3d11va-copy"),

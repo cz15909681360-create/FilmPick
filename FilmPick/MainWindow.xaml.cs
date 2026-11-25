@@ -54,6 +54,7 @@ public partial class MainWindow : Window
     {
         appData = state;
         InitializeComponent();
+        VersionLabel.Text = $"媒体选片工作台  /  {typeof(MainWindow).Assembly.GetName().Version?.ToString(3)}";
         saveTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(275), DispatcherPriority.Background, (_, _) => SaveSession(), Dispatcher);
         saveTimer.Stop();
         seekTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(65), DispatcherPriority.Background, (_, _) =>
@@ -86,64 +87,68 @@ public partial class MainWindow : Window
     {
         if (busy || libraryBusy || !SaveSession()) return;
         SetBusy(true, "正在扫描素材…");
-        try
-        {
-            await gradeTask;
-            if (!SaveSession()) return;
-            await StopVideo();
-            var nextRoot = await Task.Run(() => Paths.Root(folder));
-            var nextStore = new Store(nextRoot, appData);
-            var nextSession = await Task.Run(() => nextStore.Read<Session>("session"));
-            var (nextCatalog, nextGrades, gradeError) = await Task.Run(() =>
-            {
-                GradeOutbox? pending = null;
-                string? error = null;
-                try
-                {
-                    pending = nextStore.Read<GradeOutbox>("grade-writes");
-                    new GradeWriter(nextRoot).RecoverOriginalNames(pending);
-                }
-                catch (Exception ex) { error = ex.Message; }
-                return (Catalog.Scan(nextRoot, nextSession.Recursive), pending, error);
-            });
-            if (!Paths.Comparer.Equals(root, nextRoot))
-            {
-                ++lutRequest;
-                loadingLut = false;
-                lutOn = false;
-                lutFailure = null;
-                lutApplying = false;
-                player?.SetLut(++lutRevision, null);
-            }
-            root = nextRoot;
-            RefreshThumbnailLook();
-            markHistory.Clear();
-            markBaselines.Clear();
-            markAnchors.Clear();
-            store = nextStore;
-            archive = new Archive(root, store);
-            session = nextSession;
-            catalog = nextCatalog;
-            OpenGrades(nextGrades, gradeError);
-            journal = new CopyJournal();
-            ReloadJournal();
-            legacyWarning = archive.LegacyWarning();
-            catalog.Reconcile(session);
-            AttachmentsChanged();
-            RecursiveBox.IsChecked = session.Recursive;
-            AutoBox.IsChecked = session.AutoAdvance;
-            FolderLabel.Text = Path.GetFileName(root);
-            FolderLabel.ToolTip = root;
-            ResetBrowseFilters();
-            StartCaptureIndex();
-            BuildQueue(session.View ?? (catalog.Ordered.Any(item => catalog.Main[item] == Kind.Photo) ? Kind.Photo : Kind.Video));
-            StartGradeWrites();
-            Status(ScanSummary());
-            if (legacyWarning.Length != 0)
-                DetailDialog.Show(this, "旧版移动记录", "本版本不会恢复旧移动。请先自行核对以下位置；该目录暂不接受复制归档。", legacyWarning);
-        }
-        catch (Exception ex) { Fail("无法打开素材文件夹", ex); ShowCurrent(); }
+        try { await LoadRoot(await Task.Run(() => Paths.Root(folder))); }
+        catch (Exception ex) { Fail("无法打开素材文件夹", ex); }
         finally { SetBusy(false); Queue.Focus(); }
+    }
+
+    private async Task LoadRoot(string nextRoot, string[]? droppedFiles = null)
+    {
+        await gradeTask;
+        if (!SaveSession()) return;
+        var nextStore = new Store(nextRoot, appData);
+        var nextSession = await Task.Run(() => nextStore.Read<Session>("session"));
+        var (nextCatalog, nextGrades, gradeError) = await Task.Run(() =>
+        {
+            GradeOutbox? pending = null;
+            string? error = null;
+            try
+            {
+                pending = nextStore.Read<GradeOutbox>("grade-writes");
+                new GradeWriter(nextRoot).RecoverOriginalNames(pending);
+            }
+            catch (Exception ex) { error = ex.Message; }
+            return (Catalog.Scan(nextRoot, nextSession.Recursive), pending, error);
+        });
+        nextCatalog.Reconcile(nextSession);
+        var target = droppedFiles == null ? null : ResolveDroppedAsset(nextRoot, nextCatalog, nextSession, droppedFiles);
+        if (droppedFiles != null && target == null) { ReportUnresolvedDrop(); return; }
+        await StopVideo();
+        if (!Paths.Comparer.Equals(root, nextRoot))
+        {
+            ++lutRequest;
+            loadingLut = false;
+            lutOn = false;
+            lutFailure = null;
+            lutApplying = false;
+            player?.SetLut(++lutRevision, null);
+        }
+        root = nextRoot;
+        RefreshThumbnailLook();
+        markHistory.Clear();
+        markBaselines.Clear();
+        markAnchors.Clear();
+        store = nextStore;
+        archive = new Archive(root, store);
+        session = nextSession;
+        catalog = nextCatalog;
+        OpenGrades(nextGrades, gradeError);
+        journal = new CopyJournal();
+        ReloadJournal();
+        legacyWarning = archive.LegacyWarning();
+        AttachmentsChanged();
+        RecursiveBox.IsChecked = session.Recursive;
+        AutoBox.IsChecked = session.AutoAdvance;
+        FolderLabel.Text = Path.GetFileName(root);
+        FolderLabel.ToolTip = root;
+        ResetBrowseFilters();
+        StartCaptureIndex();
+        BuildQueue(target != null ? catalog.Main[target] : session.View ??
+            (catalog.Ordered.Any(item => catalog.Main[item] == Kind.Photo) ? Kind.Photo : Kind.Video), target);
+        StartGradeWrites();
+        Status(ScanSummary());
+        if (legacyWarning.Length != 0)
+            DetailDialog.Show(this, "旧版移动记录", "本版本不会恢复旧移动。请先自行核对以下位置；该目录暂不接受复制归档。", legacyWarning);
     }
 
     private async void ChangeRecursion(object sender, RoutedEventArgs args)
@@ -170,7 +175,7 @@ public partial class MainWindow : Window
         finally { SetBusy(false); }
     }
 
-    private void BuildQueue(Kind kind)
+    private void BuildQueue(Kind kind, string? target = null)
     {
         lastPhotoIndex = -1;
         photoDirection = 1;
@@ -180,7 +185,7 @@ public partial class MainWindow : Window
         modeItems = catalog.Ordered.Where(path => catalog.Main[path] == view).ToArray();
         RefreshBrowseWidgets();
         var previous = view == Kind.Photo ? session.PhotoPosition : session.VideoPosition;
-        RefreshQueue(resetPreview: true, restore: previous == null ? null : catalog.GroupOf(previous));
+        RefreshQueue(resetPreview: true, restore: target ?? (previous == null ? null : catalog.GroupOf(previous)));
     }
 
     private void PhotoMode(object sender, RoutedEventArgs args) { if (!busy && view != Kind.Photo) BuildQueue(Kind.Photo); }
@@ -217,7 +222,7 @@ public partial class MainWindow : Window
             MediaName.ToolTip = null;
             MediaInfo.Text = view == Kind.Photo ? "照片" : "视频";
             EmptyState(root == null ? "打开文件夹，开始选片" : modeItems.Length == 0 ? "这个队列里没有素材" : "没有匹配的素材",
-                root == null ? "在此检查画面。归档只复制，源文件保持原处。" : modeItems.Length == 0 ?
+                root == null ? "拖入素材或文件夹，也可以使用「打开素材文件夹」。" : modeItems.Length == 0 ?
                     "切换照片／视频，或勾选包含子文件夹。" : "可调整筛选条件，或在筛选菜单中清除筛选。");
             if (root != null && modeItems.Length == 0)
             {

@@ -227,11 +227,8 @@ public partial class MainWindow
         var listed = new List<BrowseItem>();
         foreach (var path in modeItems)
         {
-            var indexed = capture.GetValueOrDefault(path);
-            var item = new BrowseItem(path, catalog.RawCompanions.GetValueOrDefault(path), GetMark(path),
-                RatingOf(path), indexed?.Metadata.Date, indexed == null && captureLoading);
-            if (filter.Includes(item.Name, Path.GetFileName(item.Companion), item.Date, item.Rating, item.Mark, item.Pending))
-                listed.Add(item);
+            var item = BrowseItemFor(path);
+            if (filter.Includes(item)) listed.Add(item);
         }
         listed.Sort((left, right) => Browse.Compare(left, right, order));
         var visible = listed.Select(item => item.Relative).ToHashSet(Paths.Comparer);
@@ -260,6 +257,13 @@ public partial class MainWindow
         FilterPopup.IsOpen = false;
         photoFilter = videoFilter = new();
         captureIndex = new();
+    }
+
+    private BrowseItem BrowseItemFor(string path)
+    {
+        var indexed = capture.GetValueOrDefault(path);
+        return new(path, catalog.RawCompanions.GetValueOrDefault(path), GetMark(path),
+            RatingOf(path), indexed?.Metadata.Date, indexed == null && captureLoading);
     }
 
     private void StartCaptureIndex()

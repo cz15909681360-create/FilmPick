@@ -267,8 +267,52 @@ public partial class MainWindow
             Check(view == Kind.Photo && Queue.SelectedItem is Row && !SwitchEmptyMode.IsVisible, "切回照片");
             await OpenRoot(Directory.CreateDirectory(Path.Combine(appData, "空目录")).FullName);
             Check(rows.Count == 0 && !SwitchEmptyMode.IsVisible, "空目录不显示切换按钮");
-            File.WriteAllText(output, "PASS: WPF browse, grades and multi-undo, archive, independent filename clear, empty mode jumps, codec, chroma, bit depth, color, focal length, Tab, timed DJI data, LRF and software retry.");
+            await CheckDroppedAssets();
+            File.WriteAllText(output, "PASS: WPF browse, grades and multi-undo, archive, file drop, codec, chroma, bit depth, color, focal length, Tab, timed DJI data, LRF and software retry.");
             Application.Current.Shutdown(0);
+
+            async Task CheckDroppedAssets()
+            {
+                var raw = Path.Combine(media, "样片2.NEF");
+                var videoFile = Path.Combine(media, "视频.mov");
+                var lrf = Path.Combine(media, "视频.LRF");
+                var orphan = Path.Combine(media, "独立.XMP");
+                File.WriteAllText(orphan, "");
+                await OpenDrop([media]);
+                Check(Paths.Comparer.Equals(root, media), "拖入文件夹");
+                await OpenDrop([orphan, raw, videoFile]);
+                Check(view == Kind.Photo && Queue.SelectedItem is Row { Relative: "样片2.jpg" }, "同目录批次按顺序定位 RAW 组");
+                await OpenDrop([lrf]);
+                await WaitForPicture(ticket, "red");
+                Check(view == Kind.Video && Queue.SelectedItem is Row { Relative: "视频.mov" }, "拖代理定位原片");
+                var currentTicket = ticket;
+                await OpenDrop([lrf]);
+                Check(ticket == currentTicket, "同一视频无需重新打开");
+                await OpenDrop([orphan]);
+                await OpenDrop([photoOnly, videoFile]);
+                await OpenDrop([Path.Combine(photoOnly, "仅照片.jpg"), videoFile]);
+                await OpenDrop([Path.Combine(media, "失效.mp4")]);
+                Check(ticket == currentTicket && Paths.Comparer.Equals(root, media), "错误批次保留当前预览");
+                await OpenDrop([Path.Combine(photoOnly, "仅照片.jpg")]);
+                Check(Paths.Comparer.Equals(root, photoOnly) && Queue.SelectedItem is Row { Relative: "仅照片.jpg" }, "文件打开新目录并定位");
+                await OpenDrop([raw]);
+                await WaitUntil(() => !captureLoading, "拖放目录元数据");
+                photoFilter = new(Name: "找不到", Marks: 1 << (int)GetMark("样片2.jpg"));
+                var marks = photoFilter.Marks;
+                RefreshQueue();
+                await OpenDrop([raw]);
+                Check(Queue.SelectedItem is Row { Relative: "样片2.jpg" } && photoFilter is { Name.Length: 0 } &&
+                    photoFilter.Marks == marks && StatusLine.Text.Contains("已清除文件名"), "只清除挡住目标的条件");
+                var sub = Directory.CreateDirectory(Path.Combine(media, "子目录")).FullName;
+                RecursiveBox.IsChecked = true;
+                ChangeRecursion(this, new RoutedEventArgs());
+                await WaitUntil(() => !busy && session.Recursive, "启用子目录扫描");
+                var added = Path.Combine(sub, "新照片.jpg");
+                File.Copy(Path.Combine(fixture, "PHOTO_01.jpg"), added);
+                await OpenDrop([added]);
+                Check(Paths.Comparer.Equals(root, media) && Queue.SelectedItem is Row { Relative: @"子目录\新照片.jpg" },
+                    "定位到新出现的递归子目录素材");
+            }
         }
         catch (Exception error)
         {
